@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"log/slog"
 	"net"
 
 	"github.com/33TU/socks/proxy"
@@ -48,6 +49,15 @@ type socks5Handler struct {
 	socks5.BaseServerHandler
 }
 
+// OnRequest is called when a new SOCKS5 request is received.
+func (d *socks5Handler) OnRequest(ctx context.Context, conn net.Conn, req *socks5.Request) error {
+	err := socks5.BaseOnRequest(ctx, d, conn, req)
+	if err != nil {
+		slog.ErrorContext(ctx, "request handling failed", "error", err, "from", conn.RemoteAddr(), "request", req)
+	}
+	return err
+}
+
 // OnConnect is called when a new SOCKS5 connection is established.
 func (s *socks5Handler) OnConnect(ctx context.Context, conn net.Conn, req *socks5.Request) error {
 	localIP := s.generator.Next()
@@ -66,6 +76,15 @@ type socks4Handler struct {
 	ctx       context.Context
 	generator *IPv6Generator
 	socks4.BaseServerHandler
+}
+
+// OnRequest is called when a new SOCKS4 request is received.
+func (d *socks4Handler) OnRequest(ctx context.Context, conn net.Conn, req *socks4.Request) error {
+	err := socks4.BaseOnRequest(ctx, d, conn, req)
+	if err != nil {
+		slog.ErrorContext(ctx, "request handling failed", "error", err, "from", conn.RemoteAddr(), "request", req)
+	}
+	return err
 }
 
 // OnConnect is called when a new SOCKS4 connection is established.
