@@ -24,7 +24,6 @@ func main() {
 	setupIPv6LocalBind := flag.Bool("setup-ipv6-local-bind", true, "automatically setup IPv6 local bind (default true)")
 	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=ERROR, 8=WARN)")
 	tcpTimeout := flag.Duration("tcp-timeout", 60*time.Second, "TCP timeout for connect operations")
-	udpTimeout := flag.Duration("udp-timeout", 60*time.Second, "UDP timeout for associate operations")
 
 	flag.Parse()
 
@@ -98,7 +97,6 @@ func main() {
 		*username,
 		*password,
 		*tcpTimeout,
-		*udpTimeout,
 		gen,
 	)
 

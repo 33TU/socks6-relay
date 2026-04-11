@@ -13,7 +13,7 @@ func ListenAndServeSocks5(
 	ctx context.Context,
 	network string, addr string,
 	username string, password string,
-	tcpTimeout time.Duration, udpTimeout time.Duration,
+	tcpTimeout time.Duration,
 	generator *IPv6Generator,
 ) error {
 	slog.Info("creating SOCKS server", "addr", addr, "tcp_timeout", tcpTimeout)
@@ -23,7 +23,6 @@ func ListenAndServeSocks5(
 		network, addr,
 		username, password,
 		tcpTimeout,
-		udpTimeout,
 		generator,
 	)
 

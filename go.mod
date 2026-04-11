@@ -3,7 +3,7 @@ module socks-ipv6-relay
 go 1.25.1
 
 require (
-	github.com/33TU/socks v0.1.1
+	github.com/33TU/socks v0.1.2
 	github.com/vishvananda/netlink v1.3.1
 )
 
