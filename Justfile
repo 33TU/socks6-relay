@@ -2,10 +2,7 @@ build:
     go build -o bin/socks-ipv6-relay cmd/socks-ipv6-relay/*.go
     go build -o bin/socks-ipv6-relay-test cmd/socks-ipv6-relay-test/*.go
 
-build-test:
-    go build -o bin/socks-ipv6-relay-test cmd/socks-ipv6-relay-test/*.go
-
-# requires cap NET_ADMIN and cap NET_RAW, and net.ipv6.ip_nonlocal_bind=1
+# requires cap NET_ADMIN and cap NET_RAW (or root privileges) and net.ipv6.ip_nonlocal_bind=1
 run-proxy *args:
     bin/socks-ipv6-relay {{ args }}
 
