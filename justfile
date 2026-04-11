@@ -1,5 +1,6 @@
 build:
     go build -o bin/socks-ipv6-relay cmd/socks-ipv6-relay/*.go
+    go build -o bin/socks-ipv6-relay-test cmd/socks-ipv6-relay-test/*.go
 
 build-test:
     go build -o bin/socks-ipv6-relay-test cmd/socks-ipv6-relay-test/*.go
