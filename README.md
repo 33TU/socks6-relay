@@ -1,6 +1,6 @@
 # 🧦 socks-ipv6-relay
 
-A high-performance **SOCKS5 relay** that assigns a unique IPv6 address per connection from a given prefix.
+A high-performance **SOCKS4a/SOCKS5** relay that assigns a unique IPv6 address to each connection from a given prefix.
 
 > Useful for load distribution, IP rotation, and bypassing rate limits.
 
