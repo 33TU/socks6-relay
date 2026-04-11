@@ -147,6 +147,14 @@ This makes every connection appear to originate from a different IP.
 
 ---
 
+## Demo preview (IPv6 source rotation)
+
+Each request uses a different IPv6 source address.
+
+[![Demo](img/socks-ipv6-relay-demo.gif)](docs/socks-ipv6-relay-demo.mp4)
+
+---
+
 ## 📄 License
 
 MIT
