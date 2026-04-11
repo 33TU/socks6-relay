@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/net/proxy"
+	"github.com/33TU/socks/socks5"
 )
 
 func main() {
@@ -24,11 +24,7 @@ func main() {
 	slog.Info("starting SOCKS5 proxy test", "proxy", *proxyAddr, "target", *target)
 
 	// Create SOCKS5 dialer
-	dialer, err := proxy.SOCKS5("tcp", *proxyAddr, nil, proxy.Direct)
-	if err != nil {
-		slog.Error("failed to create proxy dialer", "error", err)
-		return
-	}
+	dialer := socks5.NewDialer(*proxyAddr, nil, nil)
 
 	// Create HTTP transport with SOCKS5 proxy
 	transport := &http.Transport{
