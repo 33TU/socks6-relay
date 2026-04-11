@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"socks-ipv6-relay/internal"
 )
@@ -22,7 +23,7 @@ func main() {
 	setupIPv6Routes := flag.Bool("setup-ipv6-routes", true, "automatically setup IPv6 route (default true)")
 	setupIPv6LocalBind := flag.Bool("setup-ipv6-local-bind", true, "automatically setup IPv6 local bind (default true)")
 	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=ERROR, 8=WARN)")
-	tcpTimeout := flag.Int("tcp-timeout", 60, "TCP timeout in seconds")
+	tcpTimeout := flag.Duration("tcp-timeout", 60*time.Second, "TCP timeout for connect operations")
 
 	flag.Parse()
 

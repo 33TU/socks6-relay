@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/33TU/socks/proxy"
 	"github.com/33TU/socks/socks4"
@@ -18,7 +19,7 @@ const (
 func NewServerHandler(ctx context.Context,
 	network string, addr string,
 	username string, password string,
-	tcpTimeout int,
+	tcpTimeout time.Duration,
 	generator *IPv6Generator,
 ) *proxy.ServerHandler {
 	// SOCKS4
@@ -27,6 +28,7 @@ func NewServerHandler(ctx context.Context,
 		generator: generator,
 	}
 	socks4Handler.AllowConnect = true
+	socks4Handler.BaseServerHandler.ConnectConnTimeout = tcpTimeout
 
 	// SOCKS5
 	socks5Handler := &socks5Handler{
@@ -34,6 +36,7 @@ func NewServerHandler(ctx context.Context,
 		generator: generator,
 	}
 	socks5Handler.AllowConnect = true
+	socks5Handler.BaseServerHandler.ConnectConnTimeout = tcpTimeout
 
 	// multi-protocol handler
 	return &proxy.ServerHandler{

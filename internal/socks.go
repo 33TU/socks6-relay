@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/33TU/socks/proxy"
 )
@@ -12,7 +13,7 @@ func ListenAndServeSocks5(
 	ctx context.Context,
 	network string, addr string,
 	username string, password string,
-	tcpTimeout int,
+	tcpTimeout time.Duration,
 	generator *IPv6Generator,
 ) error {
 	slog.Info("creating SOCKS server", "addr", addr, "tcp_timeout", tcpTimeout)
