@@ -14,7 +14,7 @@ import (
 
 func main() {
 	// CLI flags
-	addr := flag.String("listen", ":1080", "SOCKS5 listen address")
+	addr := flag.String("listen", ":1080", "SOCKS4a and SOCKS5 server listen address")
 	username := flag.String("user", "", "username (optional)")
 	password := flag.String("pass", "", "password (optional)")
 	prefix := flag.String("prefix", "", "IPv6 prefix (required, e.g. 2a01:4f8:...::/64)")
@@ -88,9 +88,9 @@ func main() {
 	slog.Info("IPv6 generator initialized", "random", *random)
 
 	// start server
-	slog.Info("SOCKS5 listening", "address", *addr)
+	slog.Info("SOCKS4a and SOCKS5 server listening on", "address", *addr)
 
-	err = internal.ListenAndServeSocks5(
+	err = internal.ListenAndServeSocks(
 		ctx,
 		"tcp",
 		*addr,

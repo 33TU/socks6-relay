@@ -8,15 +8,15 @@ import (
 	"github.com/33TU/socks/proxy"
 )
 
-// ListenAndServeSocks5 starts a SOCKS5 server with the given parameters and handler.
-func ListenAndServeSocks5(
+// ListenAndServeSocks starts a SOCKS4a and SOCKS5 server with the given parameters and handler.
+func ListenAndServeSocks(
 	ctx context.Context,
 	network string, addr string,
 	username string, password string,
 	tcpTimeout time.Duration,
 	generator *IPv6Generator,
 ) error {
-	slog.Info("creating SOCKS server", "addr", addr, "tcp_timeout", tcpTimeout)
+	slog.Info("creating SOCKS4a and SOCKS5 server", "addr", addr, "tcp_timeout", tcpTimeout)
 
 	handler := NewServerHandler(
 		ctx,
@@ -26,7 +26,7 @@ func ListenAndServeSocks5(
 		generator,
 	)
 
-	slog.Info("starting SOCKS server", "addr", addr)
+	slog.Info("starting SOCKS4a and SOCKS5 server", "addr", addr)
 	errChan := make(chan error, 1)
 	go func() {
 		errChan <- proxy.ListenAndServe(ctx, network, addr, handler)
@@ -37,7 +37,7 @@ func ListenAndServeSocks5(
 	case err := <-errChan:
 		return err
 	case <-ctx.Done():
-		slog.Info("shutting down SOCKS server due to context cancellation")
+		slog.Info("shutting down SOCKS4a and SOCKS5 server due to context cancellation")
 		return ctx.Err()
 	}
 }
