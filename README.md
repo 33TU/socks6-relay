@@ -74,7 +74,7 @@ docker run --rm \
 | ------------- | ------------------------------------ |
 | `--prefix`    | IPv6 prefix (e.g. `/64`)             |
 | `--iface`     | Network interface (e.g. `eth0`)      |
-| `--listen`    | SOCKS5 listen address                |
+| `--listen`    | SOCKS4a/SOCKS5 listen address        |
 | `--log-level` | Log level (debug, info, warn, error) |
 
 ---
@@ -141,7 +141,7 @@ Each outbound connection:
 
 1. Selects a random IPv6 address from the provided prefix
 2. Binds the socket to that address
-3. Forwards traffic via SOCKS5
+3. Forwards traffic via SOCKS4a/SOCKS5
 
 This makes every connection appear to originate from a different IP.
 
