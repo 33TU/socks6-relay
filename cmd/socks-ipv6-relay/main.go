@@ -13,30 +13,39 @@ import (
 )
 
 func main() {
-	// CLI flags
-	addr := flag.String("listen", ":1080", "SOCKS4a and SOCKS5 server listen address")
+	addr := flag.String("listen", ":1080", "SOCKS server listen address")
+	network := flag.String("network", "tcp", "listen network")
 	username := flag.String("user", "", "username (optional)")
 	password := flag.String("pass", "", "password (optional)")
+
+	allowConnect := flag.Bool("allow-connect", true, "allow SOCKS CONNECT")
+	connectTimeout := flag.Duration("connect-timeout", 60*time.Second, "timeout for CONNECT operations")
+
+	allowUDPAssociate := flag.Bool("allow-udp-associate", true, "allow SOCKS UDP ASSOCIATE")
+	udpAssociateAdvertiseAddr := flag.String("udp-associate-advertise-addr", "", "advertised UDP relay address (optional)")
+	udpAssociateTimeout := flag.Duration("udp-associate-timeout", 60*time.Second, "timeout for UDP ASSOCIATE operations")
+
 	prefix := flag.String("prefix", "", "IPv6 prefix (required, e.g. 2a01:4f8:...::/64)")
-	iface := flag.String("iface", "", "Network interface (required) (e.g. enp0s31f6)")
+	iface := flag.String("iface", "", "network interface (required for route setup) (e.g. enp0s31f6)")
 	random := flag.Bool("random", true, "use random IPv6 (default true, false = incremental)")
-	setupIPv6Routes := flag.Bool("setup-ipv6-routes", true, "automatically setup IPv6 route (default true)")
-	setupIPv6LocalBind := flag.Bool("setup-ipv6-local-bind", true, "automatically setup IPv6 local bind (default true)")
-	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=ERROR, 8=WARN)")
-	tcpTimeout := flag.Duration("tcp-timeout", 60*time.Second, "TCP timeout for connect operations")
+	setupIPv6Routes := flag.Bool("setup-ipv6-routes", true, "automatically setup IPv6 route")
+	setupIPv6LocalBind := flag.Bool("setup-ipv6-local-bind", true, "automatically setup IPv6 local bind")
+	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=WARN, 8=ERROR)")
 
 	flag.Parse()
 
-	// set log level
 	slog.SetLogLoggerLevel(slog.Level(*logLevel))
 
-	// validation
 	if *prefix == "" {
 		slog.Error("missing required --prefix")
 		os.Exit(1)
 	}
 
-	// context + shutdown
+	if *setupIPv6Routes && *iface == "" {
+		slog.Error("missing required --iface when --setup-ipv6-routes=true")
+		os.Exit(1)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -49,7 +58,6 @@ func main() {
 		cancel()
 	}()
 
-	// setup IPv6 route
 	if *setupIPv6Routes {
 		routeAdded, err := internal.AddLocalIPv6Route(*prefix, *iface)
 		if err != nil {
@@ -69,7 +77,6 @@ func main() {
 		slog.Info("IPv6 route ready", "prefix", *prefix)
 	}
 
-	// setup non-local bind
 	if *setupIPv6LocalBind {
 		if err := internal.EnableIPv6NonLocalBind(); err != nil {
 			slog.Error("failed to enable non local bind", "error", err)
@@ -78,28 +85,38 @@ func main() {
 		slog.Info("enabled non local bind")
 	}
 
-	// generator
 	gen, err := internal.NewIPv6Generator(*prefix, *random)
 	if err != nil {
 		slog.Error("failed to create IPv6 generator", "error", err)
 		os.Exit(1)
 	}
 
-	slog.Info("IPv6 generator initialized", "random", *random)
+	opts := internal.Options{
+		Network:  *network,
+		Addr:     *addr,
+		Username: *username,
+		Password: *password,
 
-	// start server
-	slog.Info("SOCKS4a and SOCKS5 server listening on", "address", *addr)
+		AllowConnect:   *allowConnect,
+		ConnectTimeout: *connectTimeout,
 
-	err = internal.ListenAndServeSocks(
-		ctx,
-		"tcp",
-		*addr,
-		*username,
-		*password,
-		*tcpTimeout,
-		gen,
+		AllowUDPAssociate:         *allowUDPAssociate,
+		UDPAssociateAdvertiseAddr: *udpAssociateAdvertiseAddr,
+		UDPAssociateTimeout:       *udpAssociateTimeout,
+
+		IPv6Generator: gen,
+	}
+
+	slog.Info(
+		"starting SOCKS server",
+		"network", opts.Network,
+		"addr", opts.Addr,
+		"allow_connect", opts.AllowConnect,
+		"allow_udp_associate", opts.AllowUDPAssociate,
+		"udp_advertise_addr", opts.UDPAssociateAdvertiseAddr,
 	)
 
+	err = internal.ListenAndServeSocks(ctx, opts)
 	if err != nil && err != context.Canceled {
 		slog.Error("server error", "error", err)
 		os.Exit(1)

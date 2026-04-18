@@ -3,33 +3,34 @@ package internal
 import (
 	"context"
 	"log/slog"
-	"time"
 
 	"github.com/33TU/socks/proxy"
 )
 
-// ListenAndServeSocks starts a SOCKS4a and SOCKS5 server with the given parameters and handler.
-func ListenAndServeSocks(
-	ctx context.Context,
-	network string, addr string,
-	username string, password string,
-	tcpTimeout time.Duration,
-	generator *IPv6Generator,
-) error {
-	slog.Info("creating SOCKS4a and SOCKS5 server", "addr", addr, "tcp_timeout", tcpTimeout)
-
-	handler := NewServerHandler(
-		ctx,
-		network, addr,
-		username, password,
-		tcpTimeout,
-		generator,
+// ListenAndServeSocks starts a SOCKS4a and SOCKS5 server with the given options.
+func ListenAndServeSocks(ctx context.Context, opts Options) error {
+	slog.Info(
+		"creating SOCKS4a and SOCKS5 server",
+		"network", opts.Network,
+		"addr", opts.Addr,
+		"connect_timeout", opts.ConnectTimeout,
+		"udp_associate_timeout", opts.UDPAssociateTimeout,
+		"allow_connect", opts.AllowConnect,
+		"allow_udp_associate", opts.AllowUDPAssociate,
+		"udp_associate_advertise_addr", opts.UDPAssociateAdvertiseAddr,
 	)
 
-	slog.Info("starting SOCKS4a and SOCKS5 server", "addr", addr)
+	handler := NewServerHandler(opts)
+
+	slog.Info(
+		"starting SOCKS4a and SOCKS5 server",
+		"network", opts.Network,
+		"addr", opts.Addr,
+	)
+
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- proxy.ListenAndServe(ctx, network, addr, handler)
+		errChan <- proxy.ListenAndServe(ctx, opts.Network, opts.Addr, handler)
 		close(errChan)
 	}()
 
