@@ -199,4 +199,4 @@ Each request uses a different IPv6 source address.
 
 ## 📄 License
 
-MIT
+[MIT](LICENSE)
