@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"log/slog"
 	"os"
@@ -13,6 +14,15 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("fatal", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("server stopped")
+}
+
+func run() error {
 	addr := flag.String("listen", ":1080", "SOCKS server listen address")
 	network := flag.String("network", "tcp", "listen network")
 	username := flag.String("user", "", "username (optional)")
@@ -37,13 +47,11 @@ func main() {
 	slog.SetLogLoggerLevel(slog.Level(*logLevel))
 
 	if *prefix == "" {
-		slog.Error("missing required --prefix")
-		os.Exit(1)
+		return errors.New("missing required --prefix")
 	}
 
 	if *setupIPv6Routes && *iface == "" {
-		slog.Error("missing required --iface when --setup-ipv6-routes=true")
-		os.Exit(1)
+		return errors.New("missing required --iface when --setup-ipv6-routes=true")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -61,8 +69,7 @@ func main() {
 	if *setupIPv6Routes {
 		routeAdded, err := internal.AddLocalIPv6Route(*prefix, *iface)
 		if err != nil {
-			slog.Error("failed to add local IPv6 route", "error", err)
-			os.Exit(1)
+			return err
 		}
 		if routeAdded {
 			defer func() {
@@ -79,16 +86,14 @@ func main() {
 
 	if *setupIPv6LocalBind {
 		if err := internal.EnableIPv6NonLocalBind(); err != nil {
-			slog.Error("failed to enable non local bind", "error", err)
-			os.Exit(1)
+			return err
 		}
 		slog.Info("enabled non local bind")
 	}
 
 	gen, err := internal.NewIPv6Generator(*prefix, *random)
 	if err != nil {
-		slog.Error("failed to create IPv6 generator", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	opts := internal.Options{
@@ -116,11 +121,9 @@ func main() {
 		"udp_advertise_addr", opts.UDPAssociateAdvertiseAddr,
 	)
 
-	err = internal.ListenAndServeSocks(ctx, opts)
-	if err != nil && err != context.Canceled {
-		slog.Error("server error", "error", err)
-		os.Exit(1)
+	if err := internal.ListenAndServeSocks(ctx, opts); err != nil && !errors.Is(err, context.Canceled) {
+		return err
 	}
 
-	slog.Info("server stopped")
+	return nil
 }

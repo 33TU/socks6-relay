@@ -32,7 +32,7 @@ func EnableIPv6NonLocalBind() error {
 	)
 }
 
-// AddLocalIPv6Route ensures: local <prefix> dev lo exists.
+// AddLocalIPv6Route ensures: local <prefix> dev <iface> exists in table 255.
 // Returns (created, error); created is false if the route already existed.
 func AddLocalIPv6Route(cidr, iface string) (bool, error) {
 	slog.Debug("adding local IPv6 route", "cidr", cidr, "interface", iface)
@@ -64,7 +64,7 @@ func AddLocalIPv6Route(cidr, iface string) (bool, error) {
 	return false, err
 }
 
-// RemoveLocalIPv6Route removes: local <prefix> dev lo.
+// RemoveLocalIPv6Route removes: local <prefix> dev <iface> from table 255.
 // Returns (removed, error)
 func RemoveLocalIPv6Route(cidr, iface string) (bool, error) {
 	slog.Debug("removing local IPv6 route", "cidr", cidr, "interface", iface)

@@ -70,23 +70,75 @@ docker run --rm \
 
 ### Flags
 
-| Flag          | Description                          |
-| ------------- | ------------------------------------ |
-| `--prefix`    | IPv6 prefix (e.g. `/64`)             |
-| `--iface`     | Network interface (e.g. `eth0`)      |
-| `--listen`    | SOCKS4a/SOCKS5 listen address        |
-| `--log-level` | Log level (debug, info, warn, error) |
+| Flag                             | Default      | Description                                                          |
+| -------------------------------- | ------------ | -------------------------------------------------------------------- |
+| `--prefix`                       | *(required)* | IPv6 prefix to rotate through (e.g. `2a01:4f9:abcd:1234::/64`)        |
+| `--iface`                        | *(required)* | Interface for route setup; required unless `--setup-ipv6-routes=false` |
+| `--listen`                       | `:1080`      | SOCKS4a/SOCKS5 listen address                                        |
+| `--network`                      | `tcp`        | Listen network                                                       |
+| `--random`                       | `true`       | Random addresses within the prefix; `false` = incremental             |
+| `--user`                         | *(empty)*    | Username for authentication                                          |
+| `--pass`                         | *(empty)*    | Password for authentication                                          |
+| `--allow-connect`                | `true`       | Allow SOCKS `CONNECT`                                                |
+| `--connect-timeout`              | `60s`        | Timeout for `CONNECT` operations                                     |
+| `--allow-udp-associate`          | `true`       | Allow SOCKS5 `UDP ASSOCIATE`                                         |
+| `--udp-associate-advertise-addr` | *(empty)*    | Address advertised to clients for the UDP relay                      |
+| `--udp-associate-timeout`        | `60s`        | Timeout for `UDP ASSOCIATE` operations                               |
+| `--setup-ipv6-routes`            | `true`       | Install the `local <prefix>` route automatically                     |
+| `--setup-ipv6-local-bind`        | `true`       | Enable `net.ipv6.ip_nonlocal_bind` automatically                     |
+| `--log-level`                    | `0`          | slog level as an integer: `-4`=DEBUG, `0`=INFO, `4`=WARN, `8`=ERROR   |
+
+Authentication is enforced only when **both** `--user` and `--pass` are set.
+
+The prefix may be any length; addresses are generated strictly within it, including
+non-byte-aligned prefixes such as `/60`.
 
 ---
 
 ## 📋 Requirements
 
 * Linux host with IPv6 enabled
-* Routed IPv6 prefix
-* Kernel setting:
+* An IPv6 prefix that is **routed to the host** (see below)
+* Kernel setting, applied automatically unless `--setup-ipv6-local-bind=false`:
 
 ```bash
 sudo sysctl -w net.ipv6.ip_nonlocal_bind=1
+```
+
+### Routed vs on-link prefixes
+
+The relay binds sockets to addresses it never configures on an interface. That
+works only if the upstream router forwards the whole prefix to your host
+without resolving individual addresses.
+
+**Routed prefix** (e.g. Hetzner dedicated, gateway `fe80::1`) — works as-is.
+The router has a static route for the prefix and never sends Neighbor
+Solicitations for individual addresses.
+
+**On-link prefix** (common on VPS providers such as Contabo) — the gateway sits
+inside your own prefix and sends a Neighbor Solicitation for each destination
+address. The kernel only answers those for addresses actually configured on an
+interface, so return traffic for a generated address is dropped and connections
+hang. Check which one you have:
+
+```bash
+ip -6 route show default
+# via fe80::1                    -> routed, nothing more to do
+# via <address in your prefix>   -> on-link, proxy NDP required
+```
+
+For an on-link prefix, answer NDP for the whole range, e.g. with `ndppd`:
+
+```bash
+sysctl -w net.ipv6.conf.all.proxy_ndp=1
+```
+
+```
+# /etc/ndppd.conf
+proxy eth0 {
+  router yes
+  rule 2a01:4f9:abcd:1234::/64 { static; }
+}
 ```
 
 ---
@@ -101,49 +153,39 @@ The relay requires:
 
 ---
 
-## 🧪 Development (Justfile)
+## 🧪 Development (justfile)
 
-```make
-build:
-    go build -o bin/socks-ipv6-relay ./cmd/socks-ipv6-relay
+```bash
+just build            # build both binaries into bin/
+just run-proxy  --prefix 2a01:4f9:abcd:1234::/64 --iface eth0
+just test-proxy --proxy 127.0.0.1:1080
+just docker-build
+just docker-run --prefix 2a01:4f9:abcd:1234::/64 --iface eth0
+just docker-run-test --proxy host.docker.internal:1080
+```
 
-build-test:
-    go build -o bin/socks-ipv6-relay-test ./cmd/socks-ipv6-relay-test
+Run the tests with:
 
-run-proxy *args:
-    bin/socks-ipv6-relay {{ args }}
-
-test-proxy *args:
-    bin/socks-ipv6-relay-test {{ args }}
-
-docker-build:
-    docker build -t socks-ipv6-relay .
-
-docker-run *args:
-    docker run --rm \
-        --network host \
-        --cap-add NET_ADMIN \
-        --cap-add NET_RAW \
-        socks-ipv6-relay {{ args }}
-
-docker-run-test *args:
-    docker run --rm \
-        --add-host=host.docker.internal:host-gateway \
-        --entrypoint /app/bin/socks-ipv6-relay-test \
-        socks-ipv6-relay {{ args }}
+```bash
+go test ./...
 ```
 
 ---
 
 ## 🧠 How It Works
 
-Each outbound connection:
+On startup the relay installs a `local <prefix>` route in table 255 so the
+kernel accepts inbound packets for every address in the prefix, and enables
+`net.ipv6.ip_nonlocal_bind` so sockets may bind addresses the host does not own.
 
-1. Selects a random IPv6 address from the provided prefix
+Then, for each outbound connection:
+
+1. Selects an address from the provided prefix (random by default, or incremental with `--random=false`)
 2. Binds the socket to that address
 3. Forwards traffic via SOCKS4a/SOCKS5
 
-This makes every connection appear to originate from a different IP.
+This makes every connection appear to originate from a different IP, without
+configuring an interface address per connection.
 
 ---
 

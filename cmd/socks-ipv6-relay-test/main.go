@@ -15,7 +15,7 @@ func main() {
 	proxyAddr := flag.String("proxy", "127.0.0.1:1080", "SOCKS5 proxy address") // host.docker.internal:1080
 	target := flag.String("target", "http://ip6only.me/", "Target URL to fetch")
 	timeout := flag.Int("timeout", 30, "Request timeout in seconds")
-	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=ERROR, 8=WARN)")
+	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=WARN, 8=ERROR)")
 	flag.Parse()
 
 	// Set log level
