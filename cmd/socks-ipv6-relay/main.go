@@ -40,6 +40,7 @@ func run() error {
 	random := flag.Bool("random", true, "use random IPv6 (default true, false = incremental)")
 	setupIPv6Routes := flag.Bool("setup-ipv6-routes", true, "automatically setup IPv6 route")
 	setupIPv6LocalBind := flag.Bool("setup-ipv6-local-bind", true, "automatically setup IPv6 local bind")
+	proxyNDP := flag.Bool("proxy-ndp", false, "publish proxy NDP entries for generated addresses (needed on on-link prefixes)")
 	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=WARN, 8=ERROR)")
 
 	flag.Parse()
@@ -52,6 +53,10 @@ func run() error {
 
 	if *setupIPv6Routes && *iface == "" {
 		return errors.New("missing required --iface when --setup-ipv6-routes=true")
+	}
+
+	if *proxyNDP && *iface == "" {
+		return errors.New("missing required --iface when --proxy-ndp=true")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -96,6 +101,15 @@ func run() error {
 		return err
 	}
 
+	var ndp *internal.ProxyNDP
+	if *proxyNDP {
+		if ndp, err = internal.NewProxyNDP(*iface); err != nil {
+			return err
+		}
+		defer ndp.Close()
+		slog.Info("proxy NDP enabled", "interface", *iface)
+	}
+
 	opts := internal.Options{
 		Network:  *network,
 		Addr:     *addr,
@@ -110,6 +124,7 @@ func run() error {
 		UDPAssociateTimeout:       *udpAssociateTimeout,
 
 		IPv6Generator: gen,
+		ProxyNDP:      ndp,
 	}
 
 	slog.Info(
@@ -119,6 +134,7 @@ func run() error {
 		"allow_connect", opts.AllowConnect,
 		"allow_udp_associate", opts.AllowUDPAssociate,
 		"udp_advertise_addr", opts.UDPAssociateAdvertiseAddr,
+		"proxy_ndp", *proxyNDP,
 	)
 
 	if err := internal.ListenAndServeSocks(ctx, opts); err != nil && !errors.Is(err, context.Canceled) {

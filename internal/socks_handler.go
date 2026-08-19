@@ -22,6 +22,7 @@ var (
 func NewServerHandler(opts Options) *proxy.ServerHandler {
 	dialer := &Dialer{
 		Generator: opts.IPv6Generator,
+		ProxyNDP:  opts.ProxyNDP,
 	}
 
 	socks4Handler := &socks4.BaseServerHandler{
@@ -38,10 +39,9 @@ func NewServerHandler(opts Options) *proxy.ServerHandler {
 		UDPAssociateTimeout: opts.UDPAssociateTimeout,
 
 		UDPAssociateAddrs: func(ctx context.Context, conn net.Conn, req *socks5.Request) (relayAddr *net.UDPAddr, outAddr *net.UDPAddr, advertiseAddr *net.UDPAddr, err error) {
-			outAddr = &net.UDPAddr{
-				IP: dialer.Generator.Next(),
-			}
-
+			// outAddr is left nil on purpose: UDPListenPacket below binds the
+			// outbound socket itself, so the generated address and any proxy
+			// NDP entry for it share the socket's lifetime.
 			if opts.UDPAssociateAdvertiseAddr != "" {
 				advertiseAddr, err = net.ResolveUDPAddr("udp", opts.UDPAssociateAdvertiseAddr)
 				if err != nil {
@@ -50,6 +50,10 @@ func NewServerHandler(opts Options) *proxy.ServerHandler {
 			}
 
 			return
+		},
+
+		UDPListenPacket: func(ctx context.Context, conn net.Conn, req *socks5.Request) (net.PacketConn, error) {
+			return dialer.ListenPacket(ctx)
 		},
 	}
 

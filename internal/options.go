@@ -18,4 +18,8 @@ type Options struct {
 	UDPAssociateTimeout       time.Duration
 
 	IPv6Generator *IPv6Generator
+
+	// ProxyNDP, when set, publishes proxy NDP entries for generated addresses.
+	// Only needed on on-link prefixes; nil on routed prefixes.
+	ProxyNDP *ProxyNDP
 }

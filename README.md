@@ -86,6 +86,7 @@ docker run --rm \
 | `--udp-associate-timeout`        | `60s`        | Timeout for `UDP ASSOCIATE` operations                               |
 | `--setup-ipv6-routes`            | `true`       | Install the `local <prefix>` route automatically                     |
 | `--setup-ipv6-local-bind`        | `true`       | Enable `net.ipv6.ip_nonlocal_bind` automatically                     |
+| `--proxy-ndp`                    | `false`      | Publish proxy NDP entries for generated addresses; required on on-link prefixes |
 | `--log-level`                    | `0`          | slog level as an integer: `-4`=DEBUG, `0`=INFO, `4`=WARN, `8`=ERROR   |
 
 Authentication is enforced only when **both** `--user` and `--pass` are set.
@@ -127,7 +128,21 @@ ip -6 route show default
 # via <address in your prefix>   -> on-link, proxy NDP required
 ```
 
-For an on-link prefix, answer NDP for the whole range, e.g. with `ndppd`:
+For an on-link prefix, the host has to answer those solicitations. Either let
+the relay do it:
+
+```bash
+bin/socks-ipv6-relay --prefix 2a01:4f9:abcd:1234::/64 --iface eth0 --proxy-ndp
+```
+
+`--proxy-ndp` enables `net.ipv6.conf.{all,<iface>}.proxy_ndp` and publishes a
+kernel proxy NDP entry for each generated address, withdrawing it when the
+connection closes. Entries are reference counted, and one that already existed
+before the relay started is never removed. Entries still published at shutdown
+are withdrawn on exit; a `SIGKILL` will leave them behind.
+
+Or handle the whole prefix out of band with `ndppd`, which is the better fit if
+several processes share the prefix:
 
 ```bash
 sysctl -w net.ipv6.conf.all.proxy_ndp=1
@@ -140,6 +155,8 @@ proxy eth0 {
   rule 2a01:4f9:abcd:1234::/64 { static; }
 }
 ```
+
+Neither is needed on a routed prefix.
 
 ---
 
