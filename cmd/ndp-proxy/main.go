@@ -31,8 +31,7 @@ func main() {
 func run() error {
 	prefix := flag.String("prefix", "", "IPv6 prefix to answer for (required, e.g. 2a01:4f8:...::/64)")
 	iface := flag.String("iface", "", "network interface facing the gateway (required, e.g. eth0)")
-	setupIPv6Routes := flag.Bool("setup-ipv6-routes", true, "install the local <prefix> route so the kernel accepts inbound packets for the prefix")
-	setupIPv6LocalBind := flag.Bool("setup-ipv6-local-bind", true, "enable net.ipv6.ip_nonlocal_bind so sockets may bind unconfigured addresses")
+	skipPreflight := flag.Bool("skip-preflight", false, "skip the host configuration checks")
 	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=WARN, 8=ERROR)")
 	flag.Parse()
 
@@ -56,29 +55,10 @@ func run() error {
 		cancel()
 	}()
 
-	if *setupIPv6Routes {
-		routeAdded, err := internal.AddLocalIPv6Route(*prefix, *iface)
-		if err != nil {
-			return err
-		}
-		if routeAdded {
-			defer func() {
-				removed, err := internal.RemoveLocalIPv6Route(*prefix, *iface)
-				if err != nil {
-					slog.Error("failed to remove local IPv6 route", "error", err)
-				} else if removed {
-					slog.Info("IPv6 route removed", "prefix", *prefix)
-				}
-			}()
-		}
-		slog.Info("IPv6 route ready", "prefix", *prefix)
-	}
-
-	if *setupIPv6LocalBind {
-		if err := internal.EnableIPv6NonLocalBind(); err != nil {
-			return err
-		}
-		slog.Info("enabled non local bind")
+	if *skipPreflight {
+		slog.Warn("skipping host configuration checks")
+	} else if err := internal.Preflight(*prefix, *iface); err != nil {
+		return err
 	}
 
 	responder, err := internal.NewNDPResponder(*prefix, *iface)
