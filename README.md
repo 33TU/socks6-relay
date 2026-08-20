@@ -30,6 +30,12 @@ Test binary:
 go build -o bin/socks-ipv6-relay-test ./cmd/socks-ipv6-relay-test
 ```
 
+Standalone NDP proxy (optional, for on-link prefixes — see below):
+
+```bash
+go build -o bin/ndp-proxy ./cmd/ndp-proxy
+```
+
 ---
 
 ### Run
@@ -123,23 +129,39 @@ hang. Check which one you have:
 
 ```bash
 ip -6 route show default
-# via fe80::1                    -> routed, nothing more to do
-# via <address in your prefix>   -> on-link, proxy NDP required
+# via fe80::1                    -> usually routed, nothing more to do
+# via <address in your prefix>   -> on-link, NDP answers required
 ```
 
-For an on-link prefix, answer NDP for the whole range, e.g. with `ndppd`:
+For an on-link prefix, run the bundled **`ndp-proxy`** binary alongside the relay.
+It answers Neighbor Solicitations for every address in the prefix so the gateway
+delivers the return traffic:
 
 ```bash
-sysctl -w net.ipv6.conf.all.proxy_ndp=1
+ndp-proxy --prefix 2a01:4f9:abcd:1234::/64 --iface eth0
 ```
 
-```
-# /etc/ndppd.conf
-proxy eth0 {
-  router yes
-  rule 2a01:4f9:abcd:1234::/64 { static; }
-}
-```
+`ndp-proxy` also installs the `local <prefix>` route and enables
+`ip_nonlocal_bind` by default (toggle with `--setup-ipv6-routes` /
+`--setup-ipv6-local-bind`), so it is a complete drop-in for the on-link case on
+its own — run it as a background service and the relay needs no extra flags.
+
+> **Why not `ndppd` / kernel `proxy_ndp`?** Both answer solicitations, but their
+> Neighbor Advertisements have the **Override flag cleared**. Some gateways
+> (observed on Contabo) silently ignore any NA without Override and keep
+> re-soliciting forever, so those tools appear to do nothing while return traffic
+> is dropped. `ndp-proxy` advertises with Router+Solicited+**Override** set —
+> byte-for-byte what a natively-assigned address sends — which the gateway
+> accepts. Confirm on the wire with:
+>
+> ```bash
+> tcpdump -ni eth0 -vv 'icmp6 && (ip6[40]==135 || ip6[40]==136)'
+> # a natively-assigned address answers with Flags [solicited, override];
+> # if the gateway keeps re-soliciting after an NA, it needs Override -> use ndp-proxy.
+> ```
+
+`ndp-proxy` puts the interface into allmulticast mode for its lifetime (so it
+receives solicitations for unowned addresses) and restores it on exit.
 
 ---
 
@@ -186,6 +208,12 @@ Then, for each outbound connection:
 
 This makes every connection appear to originate from a different IP, without
 configuring an interface address per connection.
+
+On an on-link prefix, the separate `ndp-proxy` binary answers IPv6 Neighbor
+Solicitations for the whole prefix (with the Override flag set) so the gateway
+delivers the return traffic. It uses a raw `AF_PACKET` socket (needs
+`CAP_NET_RAW`) and puts the interface in allmulticast mode while running. See
+*Routed vs on-link prefixes* above.
 
 ---
 
