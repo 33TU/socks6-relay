@@ -1,6 +1,11 @@
 build:
     go build -o bin/socks-ipv6-relay ./cmd/socks-ipv6-relay
     go build -o bin/socks-ipv6-relay-test ./cmd/socks-ipv6-relay-test
+    go build -o bin/ndp-proxy ./cmd/ndp-proxy
+
+# requires cap NET_ADMIN and cap NET_RAW (or root privileges)
+run-ndp-proxy *args:
+    bin/ndp-proxy {{ args }}
 
 # requires cap NET_ADMIN and cap NET_RAW (or root privileges) and net.ipv6.ip_nonlocal_bind=1
 run-proxy *args:
