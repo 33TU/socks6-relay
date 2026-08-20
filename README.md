@@ -59,16 +59,32 @@ docker build -t socks-ipv6-relay .
 
 ### Run
 
+Do the [host setup](#host-setup) first, then the relay needs no capabilities:
+
+```bash
+docker run --rm \
+  --network host \
+  socks-ipv6-relay \
+  --prefix 2a01:4f9:abcd:1234::/64 \
+  --listen :1080
+```
+
+`ndp-proxy`, for on-link prefixes, still needs both capabilities:
+
 ```bash
 docker run --rm \
   --network host \
   --cap-add NET_ADMIN \
   --cap-add NET_RAW \
+  --entrypoint /app/bin/ndp-proxy \
   socks-ipv6-relay \
   --prefix 2a01:4f9:abcd:1234::/64 \
-  --iface eth0 \
-  --listen :1080
+  --iface eth0
 ```
+
+> `--network host` shares the host's network namespace, so the container sees
+> the host's `ip_nonlocal_bind` and local route. Without it, configure the
+> settings inside the container's own namespace instead.
 
 ---
 
@@ -79,7 +95,7 @@ docker run --rm \
 | Flag                             | Default      | Description                                                          |
 | -------------------------------- | ------------ | -------------------------------------------------------------------- |
 | `--prefix`                       | *(required)* | IPv6 prefix to rotate through (e.g. `2a01:4f9:abcd:1234::/64`)        |
-| `--iface`                        | *(required)* | Interface for route setup; required unless `--setup-ipv6-routes=false` |
+| `--iface`                        | *(optional)* | Interface name, used only to make preflight messages concrete         |
 | `--listen`                       | `:1080`      | SOCKS4a/SOCKS5 listen address                                        |
 | `--network`                      | `tcp`        | Listen network                                                       |
 | `--random`                       | `true`       | Random addresses within the prefix; `false` = incremental             |
@@ -90,8 +106,7 @@ docker run --rm \
 | `--allow-udp-associate`          | `true`       | Allow SOCKS5 `UDP ASSOCIATE`                                         |
 | `--udp-associate-advertise-addr` | *(empty)*    | Address advertised to clients for the UDP relay                      |
 | `--udp-associate-timeout`        | `60s`        | Timeout for `UDP ASSOCIATE` operations                               |
-| `--setup-ipv6-routes`            | `true`       | Install the `local <prefix>` route automatically                     |
-| `--setup-ipv6-local-bind`        | `true`       | Enable `net.ipv6.ip_nonlocal_bind` automatically                     |
+| `--skip-preflight`               | `false`      | Skip the host configuration checks                                   |
 | `--log-level`                    | `0`          | slog level as an integer: `-4`=DEBUG, `0`=INFO, `4`=WARN, `8`=ERROR   |
 
 Authentication is enforced only when **both** `--user` and `--pass` are set.
@@ -105,11 +120,33 @@ non-byte-aligned prefixes such as `/60`.
 
 * Linux host with IPv6 enabled
 * An IPv6 prefix that is **routed to the host** (see below)
-* Kernel setting, applied automatically unless `--setup-ipv6-local-bind=false`:
+
+### Host setup
+
+Neither binary changes host network settings. Both **check** the two settings
+the data path depends on at startup and refuse to run with an actionable error
+if either is missing, so configure them once as the operator:
 
 ```bash
+# let sockets bind addresses that are not configured on an interface
 sudo sysctl -w net.ipv6.ip_nonlocal_bind=1
+
+# let the kernel accept inbound packets for every address in the prefix
+sudo ip -6 route add local 2a01:4f9:abcd:1234::/64 dev eth0 table local
 ```
+
+Make them persist across reboots:
+
+```bash
+echo 'net.ipv6.ip_nonlocal_bind=1' | sudo tee /etc/sysctl.d/99-socks-ipv6-relay.conf
+```
+
+The route belongs in whatever manages your interfaces (a systemd unit,
+`/etc/network/interfaces` `post-up`, netplan, …). `just setup-host` applies both
+for a quick trial; it is not persistent.
+
+Pass `--skip-preflight` to bypass the checks if you configure the host some
+other way, e.g. by assigning the addresses to an interface directly.
 
 ### Routed vs on-link prefixes
 
@@ -141,10 +178,9 @@ delivers the return traffic:
 ndp-proxy --prefix 2a01:4f9:abcd:1234::/64 --iface eth0
 ```
 
-`ndp-proxy` also installs the `local <prefix>` route and enables
-`ip_nonlocal_bind` by default (toggle with `--setup-ipv6-routes` /
-`--setup-ipv6-local-bind`), so it is a complete drop-in for the on-link case on
-its own — run it as a background service and the relay needs no extra flags.
+`ndp-proxy` runs the same preflight checks as the relay and likewise changes no
+host settings — do the host setup above first. Run it as a background service
+alongside the relay.
 
 > **Why not `ndppd` / kernel `proxy_ndp`?** Both answer solicitations, but their
 > Neighbor Advertisements have the **Override flag cleared**. Some gateways
@@ -167,11 +203,15 @@ receives solicitations for unowned addresses) and restores it on exit.
 
 ## 🔐 Permissions
 
-The relay requires:
+**`socks-ipv6-relay` needs no capabilities.** It only binds sockets and reads
+two host settings, so it runs as an unprivileged user once the host setup above
+is done.
 
-* `CAP_NET_ADMIN`
-* `CAP_NET_RAW`
-* or root privileges
+**`ndp-proxy` requires `CAP_NET_ADMIN` and `CAP_NET_RAW`** (or root): it opens an
+`AF_PACKET` socket to receive Neighbor Solicitations and puts the interface into
+allmulticast mode while running, restoring it on exit.
+
+The host setup itself requires root, but is done once, out of band.
 
 ---
 
@@ -196,9 +236,10 @@ go test ./...
 
 ## 🧠 How It Works
 
-On startup the relay installs a `local <prefix>` route in table 255 so the
-kernel accepts inbound packets for every address in the prefix, and enables
-`net.ipv6.ip_nonlocal_bind` so sockets may bind addresses the host does not own.
+The host setup provides two things: `net.ipv6.ip_nonlocal_bind` lets sockets bind
+addresses the host does not own, and the `local <prefix>` route makes the kernel
+accept inbound packets for every address in the prefix. The relay verifies both
+at startup and never changes them.
 
 Then, for each outbound connection:
 

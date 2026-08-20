@@ -36,10 +36,9 @@ func run() error {
 	udpAssociateTimeout := flag.Duration("udp-associate-timeout", 60*time.Second, "timeout for UDP ASSOCIATE operations")
 
 	prefix := flag.String("prefix", "", "IPv6 prefix (required, e.g. 2a01:4f8:...::/64)")
-	iface := flag.String("iface", "", "network interface (required for route setup) (e.g. enp0s31f6)")
+	iface := flag.String("iface", "", "network interface, used only to make preflight messages concrete (e.g. enp0s31f6)")
 	random := flag.Bool("random", true, "use random IPv6 (default true, false = incremental)")
-	setupIPv6Routes := flag.Bool("setup-ipv6-routes", true, "automatically setup IPv6 route")
-	setupIPv6LocalBind := flag.Bool("setup-ipv6-local-bind", true, "automatically setup IPv6 local bind")
+	skipPreflight := flag.Bool("skip-preflight", false, "skip the host configuration checks")
 	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=WARN, 8=ERROR)")
 
 	flag.Parse()
@@ -48,10 +47,6 @@ func run() error {
 
 	if *prefix == "" {
 		return errors.New("missing required --prefix")
-	}
-
-	if *setupIPv6Routes && *iface == "" {
-		return errors.New("missing required --iface when --setup-ipv6-routes=true")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -66,29 +61,10 @@ func run() error {
 		cancel()
 	}()
 
-	if *setupIPv6Routes {
-		routeAdded, err := internal.AddLocalIPv6Route(*prefix, *iface)
-		if err != nil {
-			return err
-		}
-		if routeAdded {
-			defer func() {
-				removed, err := internal.RemoveLocalIPv6Route(*prefix, *iface)
-				if err != nil {
-					slog.Error("failed to remove local IPv6 route", "error", err)
-				} else if removed {
-					slog.Info("IPv6 route removed", "prefix", *prefix)
-				}
-			}()
-		}
-		slog.Info("IPv6 route ready", "prefix", *prefix)
-	}
-
-	if *setupIPv6LocalBind {
-		if err := internal.EnableIPv6NonLocalBind(); err != nil {
-			return err
-		}
-		slog.Info("enabled non local bind")
+	if *skipPreflight {
+		slog.Warn("skipping host configuration checks")
+	} else if err := internal.Preflight(*prefix, *iface); err != nil {
+		return err
 	}
 
 	gen, err := internal.NewIPv6Generator(*prefix, *random)
