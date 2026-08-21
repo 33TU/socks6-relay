@@ -4,6 +4,10 @@ A high-performance **SOCKS4a/SOCKS5** relay that assigns a unique IPv6 address t
 
 > Useful for load distribution, IP rotation, and bypassing rate limits.
 
+[![test](https://github.com/33TU/socks6-relay/actions/workflows/test.yml/badge.svg)](https://github.com/33TU/socks6-relay/actions/workflows/test.yml)
+[![release](https://img.shields.io/github/v/release/33TU/socks6-relay)](https://github.com/33TU/socks6-relay/releases/latest)
+[![image](https://img.shields.io/badge/ghcr.io-33tu%2Fsocks6--relay-blue)](https://github.com/33TU/socks6-relay/pkgs/container/socks6-relay)
+
 ---
 
 ## ✨ Features
@@ -18,22 +22,34 @@ A high-performance **SOCKS4a/SOCKS5** relay that assigns a unique IPv6 address t
 
 ## 🚀 Getting Started
 
-### Build
+### Install
+
+**Container image** — multi-arch, `linux/amd64` and `linux/arm64`:
+
+```bash
+docker pull ghcr.io/33tu/socks6-relay:latest
+```
+
+**Prebuilt binaries** — from the [latest release](https://github.com/33TU/socks6-relay/releases/latest).
+Each archive contains `socks-ipv6-relay`, `ndp-proxy` and `socks-ipv6-relay-test`:
+
+```bash
+VERSION=v0.2.0
+curl -sSL "https://github.com/33TU/socks6-relay/releases/download/$VERSION/socks6-relay_${VERSION}_linux_amd64.tar.gz" | tar xz
+```
+
+**From source** — needs the Go toolchain:
+
+```bash
+just build     # all three binaries into bin/
+```
+
+or individually:
 
 ```bash
 go build -o bin/socks-ipv6-relay ./cmd/socks-ipv6-relay
-```
-
-Test binary:
-
-```bash
+go build -o bin/ndp-proxy ./cmd/ndp-proxy            # optional, for on-link prefixes
 go build -o bin/socks-ipv6-relay-test ./cmd/socks-ipv6-relay-test
-```
-
-Standalone NDP proxy (optional, for on-link prefixes — see below):
-
-```bash
-go build -o bin/ndp-proxy ./cmd/ndp-proxy
 ```
 
 ---
@@ -51,11 +67,8 @@ bin/socks-ipv6-relay \
 
 ## 🐳 Docker
 
-### Build
-
-```bash
-docker build -t socks-ipv6-relay .
-```
+Images are published to `ghcr.io/33tu/socks6-relay`, tagged with the version
+(`0.2.0`), the minor series (`0.2`) and `latest`.
 
 ### Run
 
@@ -64,22 +77,35 @@ Do the [host setup](#host-setup) first, then the relay needs no capabilities:
 ```bash
 docker run --rm \
   --network host \
-  socks-ipv6-relay \
+  ghcr.io/33tu/socks6-relay:latest \
   --prefix 2a01:4f9:abcd:1234::/64 \
   --listen :1080
 ```
 
-`ndp-proxy`, for on-link prefixes, still needs both capabilities:
+`ndp-proxy`, for on-link prefixes, needs `NET_RAW` for its packet socket:
 
 ```bash
 docker run --rm \
   --network host \
   --cap-add NET_RAW \
   --entrypoint /app/bin/ndp-proxy \
-  socks-ipv6-relay \
+  ghcr.io/33tu/socks6-relay:latest \
   --prefix 2a01:4f9:abcd:1234::/64 \
   --iface eth0
 ```
+
+Options must come **before** the image name; anything after it is passed to the
+binary.
+
+### Build it yourself
+
+```bash
+docker build -t socks6-relay .
+```
+
+The image ships `socks-ipv6-relay` and `ndp-proxy`. The
+`socks-ipv6-relay-test` helper is not included — use the release archives or
+build it from source.
 
 > `--network host` shares the host's network namespace, so the container sees
 > the host's `ip_nonlocal_bind` and local route. Without it, configure the
