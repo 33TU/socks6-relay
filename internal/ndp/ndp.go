@@ -1,4 +1,4 @@
-package internal
+package ndp
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+
+	"socks-ipv6-relay/internal/host"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -46,12 +48,9 @@ const (
 
 // NewNDPResponder resolves the interface and prepares (but does not start) the responder.
 func NewNDPResponder(prefix, iface string) (*NDPResponder, error) {
-	_, ipnet, err := net.ParseCIDR(prefix)
+	_, ipnet, err := host.ParseIPv6Prefix(prefix)
 	if err != nil {
 		return nil, err
-	}
-	if ipnet.IP.To4() != nil {
-		return nil, ErrNotIPv6Prefix
 	}
 
 	link, err := netlink.LinkByName(iface)
