@@ -17,7 +17,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"socks-ipv6-relay/internal"
+	"socks-ipv6-relay/internal/host"
+	"socks-ipv6-relay/internal/ndp"
 )
 
 func main() {
@@ -57,11 +58,11 @@ func run() error {
 
 	if *skipPreflight {
 		slog.Warn("skipping host configuration checks")
-	} else if err := internal.Preflight(*prefix, *iface); err != nil {
+	} else if err := host.Preflight(*prefix, *iface); err != nil {
 		return err
 	}
 
-	responder, err := internal.NewNDPResponder(*prefix, *iface)
+	responder, err := ndp.NewNDPResponder(*prefix, *iface)
 	if err != nil {
 		return err
 	}

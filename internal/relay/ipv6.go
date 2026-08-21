@@ -1,15 +1,14 @@
-package internal
+package relay
 
 import (
 	"encoding/binary"
-	"errors"
 	"log/slog"
 	"math/rand"
 	"net"
 	"sync/atomic"
-)
 
-var ErrNotIPv6Prefix = errors.New("prefix must be IPv6")
+	"socks-ipv6-relay/internal/host"
+)
 
 // IPv6Generator generates IPv6 addresses within a specified CIDR block, either sequentially or randomly.
 type IPv6Generator struct {
@@ -26,13 +25,9 @@ type IPv6Generator struct {
 func NewIPv6Generator(prefix string, random bool) (*IPv6Generator, error) {
 	slog.Debug("creating IPv6 generator", "prefix", prefix, "random", random)
 
-	ip, ipnet, err := net.ParseCIDR(prefix)
+	ip, ipnet, err := host.ParseIPv6Prefix(prefix)
 	if err != nil {
 		return nil, err
-	}
-
-	if ipnet.IP.To4() != nil {
-		return nil, ErrNotIPv6Prefix
 	}
 
 	maskBits, _ := ipnet.Mask.Size()

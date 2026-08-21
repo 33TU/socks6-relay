@@ -1,4 +1,4 @@
-package internal
+package ndp
 
 import (
 	"encoding/binary"

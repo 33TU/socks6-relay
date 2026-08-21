@@ -1,7 +1,8 @@
-package internal
+package relay
 
 import (
 	"net"
+	"socks-ipv6-relay/internal/host"
 	"testing"
 )
 
@@ -51,8 +52,8 @@ func TestHostBitsVary(t *testing.T) {
 }
 
 func TestRejectsIPv4Prefix(t *testing.T) {
-	if _, err := NewIPv6Generator("192.168.1.0/24", true); err != ErrNotIPv6Prefix {
-		t.Fatalf("expected ErrNotIPv6Prefix, got %v", err)
+	if _, err := NewIPv6Generator("192.168.1.0/24", true); err != host.ErrNotIPv6Prefix {
+		t.Fatalf("expected host.ErrNotIPv6Prefix, got %v", err)
 	}
 }
 

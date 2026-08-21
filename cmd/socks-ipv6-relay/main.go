@@ -10,7 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"socks-ipv6-relay/internal"
+	"socks-ipv6-relay/internal/host"
+	"socks-ipv6-relay/internal/relay"
 )
 
 func main() {
@@ -63,16 +64,16 @@ func run() error {
 
 	if *skipPreflight {
 		slog.Warn("skipping host configuration checks")
-	} else if err := internal.Preflight(*prefix, *iface); err != nil {
+	} else if err := host.Preflight(*prefix, *iface); err != nil {
 		return err
 	}
 
-	gen, err := internal.NewIPv6Generator(*prefix, *random)
+	gen, err := relay.NewIPv6Generator(*prefix, *random)
 	if err != nil {
 		return err
 	}
 
-	opts := internal.Options{
+	opts := relay.Options{
 		Network:  *network,
 		Addr:     *addr,
 		Username: *username,
@@ -97,7 +98,7 @@ func run() error {
 		"udp_advertise_addr", opts.UDPAssociateAdvertiseAddr,
 	)
 
-	if err := internal.ListenAndServeSocks(ctx, opts); err != nil && !errors.Is(err, context.Canceled) {
+	if err := relay.ListenAndServeSocks(ctx, opts); err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
 
