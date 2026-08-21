@@ -11,7 +11,6 @@ import (
 
 	"socks-ipv6-relay/internal/host"
 
-	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -25,15 +24,14 @@ import (
 // for a generated address is dropped. Advertising with Override set — exactly as a
 // natively-assigned address does — makes the gateway accept the mapping.
 //
-// It complements the local route + ip_nonlocal_bind that the relay already sets up:
-// the route lets the kernel accept inbound packets for the prefix, and this makes
-// the upstream gateway actually deliver them.
+// It complements the host setup the preflight checks require: the local route
+// lets the kernel accept inbound packets for the prefix, and this makes the
+// upstream gateway actually deliver them.
 type NDPResponder struct {
 	iface string
 	ipnet *net.IPNet
 	mac   net.HardwareAddr
 	ifIdx int
-	setAM bool // whether we turned allmulticast on (so we can turn it back off)
 	fd    int
 }
 
@@ -53,50 +51,28 @@ func NewNDPResponder(prefix, iface string) (*NDPResponder, error) {
 		return nil, err
 	}
 
-	link, err := netlink.LinkByName(iface)
+	link, err := net.InterfaceByName(iface)
 	if err != nil {
 		return nil, err
 	}
-	mac := link.Attrs().HardwareAddr
-	if len(mac) != 6 {
+	if len(link.HardwareAddr) != 6 {
 		return nil, fmt.Errorf("interface %s has no usable MAC address", iface)
 	}
 
 	return &NDPResponder{
 		iface: iface,
 		ipnet: ipnet,
-		mac:   mac,
-		ifIdx: link.Attrs().Index,
+		mac:   link.HardwareAddr,
+		ifIdx: link.Index,
 		fd:    -1,
 	}, nil
 }
 
 // Start runs the responder until ctx is cancelled. It blocks, so run it in a
-// goroutine. It puts the interface into allmulticast mode so solicitations for
-// unowned addresses (sent to solicited-node multicast groups) are delivered to us,
-// and restores that on exit.
+// goroutine. It requests allmulticast on its own socket so solicitations for
+// unowned addresses (sent to solicited-node multicast groups) reach us; the
+// kernel drops that request when the socket closes, so nothing is left behind.
 func (r *NDPResponder) Start(ctx context.Context) error {
-	link, err := netlink.LinkByName(r.iface)
-	if err != nil {
-		return err
-	}
-	if link.Attrs().Allmulti == 0 {
-		if err := netlink.LinkSetAllmulticastOn(link); err != nil {
-			return fmt.Errorf("enable allmulticast on %s: %w", r.iface, err)
-		}
-		r.setAM = true
-		slog.Debug("enabled allmulticast", "iface", r.iface)
-	}
-	defer func() {
-		if r.setAM {
-			if l, e := netlink.LinkByName(r.iface); e == nil {
-				if e := netlink.LinkSetAllmulticastOff(l); e != nil {
-					slog.Warn("failed to disable allmulticast", "iface", r.iface, "error", e)
-				}
-			}
-		}
-	}()
-
 	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(htons(ethTypeIPv6)))
 	if err != nil {
 		return fmt.Errorf("open AF_PACKET socket: %w", err)
@@ -112,6 +88,20 @@ func (r *NDPResponder) Start(ctx context.Context) error {
 	}); err != nil {
 		return fmt.Errorf("bind AF_PACKET to %s: %w", r.iface, err)
 	}
+
+	// Solicitations for addresses we do not own are sent to their solicited-node
+	// multicast groups, which the NIC filters out because the kernel never joined
+	// them. Ask for allmulticast on this socket rather than setting the interface
+	// flag: the kernel reference counts it against the socket and drops it when
+	// the socket closes, so it cannot outlive the process even on SIGKILL.
+	if err := unix.SetsockoptPacketMreq(fd, unix.SOL_PACKET, unix.PACKET_ADD_MEMBERSHIP,
+		&unix.PacketMreq{
+			Ifindex: int32(r.ifIdx),
+			Type:    unix.PACKET_MR_ALLMULTI,
+		}); err != nil {
+		return fmt.Errorf("enable allmulticast on %s: %w", r.iface, err)
+	}
+	slog.Debug("enabled allmulticast for socket", "iface", r.iface)
 
 	// Periodic read timeout so the loop can observe ctx cancellation. Usec must be
 	// in [0, 1e6); split milliseconds into whole seconds + remainder microseconds.
