@@ -1,5 +1,6 @@
-# Build stage
-FROM golang:alpine AS builder
+# Build stage. Pinned to the build platform so multi-arch builds cross-compile
+# natively instead of running the toolchain under emulation.
+FROM --platform=$BUILDPLATFORM golang:alpine AS builder
 
 WORKDIR /app
 
@@ -9,9 +10,13 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o bin/socks-ipv6-relay ./cmd/socks-ipv6-relay
-RUN go build -o bin/socks-ipv6-relay-test ./cmd/socks-ipv6-relay-test
-RUN go build -o bin/ndp-proxy ./cmd/ndp-proxy
+
+ARG TARGETOS TARGETARCH
+ENV CGO_ENABLED=0
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o bin/socks-ipv6-relay ./cmd/socks-ipv6-relay
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o bin/ndp-proxy ./cmd/ndp-proxy
 
 # Final stage
 FROM alpine:latest
@@ -20,7 +25,6 @@ WORKDIR /app
 
 RUN apk --no-cache add ca-certificates
 COPY --from=builder /app/bin/socks-ipv6-relay /app/bin/socks-ipv6-relay
-COPY --from=builder /app/bin/socks-ipv6-relay-test /app/bin/socks-ipv6-relay-test
 COPY --from=builder /app/bin/ndp-proxy /app/bin/ndp-proxy
 
 ENTRYPOINT [ "/app/bin/socks-ipv6-relay" ]
