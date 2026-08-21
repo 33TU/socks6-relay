@@ -37,7 +37,6 @@ func run() error {
 	udpAssociateTimeout := flag.Duration("udp-associate-timeout", 60*time.Second, "timeout for UDP ASSOCIATE operations")
 
 	prefix := flag.String("prefix", "", "IPv6 prefix (required, e.g. 2a01:4f8:...::/64)")
-	iface := flag.String("iface", "", "network interface, used only to make preflight messages concrete (e.g. enp0s31f6)")
 	random := flag.Bool("random", true, "use random IPv6 (default true, false = incremental)")
 	skipPreflight := flag.Bool("skip-preflight", false, "skip the host configuration checks")
 	logLevel := flag.Int("log-level", 0, "log level (-4=DEBUG, 0=INFO, 4=WARN, 8=ERROR)")
@@ -64,7 +63,7 @@ func run() error {
 
 	if *skipPreflight {
 		slog.Warn("skipping host configuration checks")
-	} else if err := host.Preflight(*prefix, *iface); err != nil {
+	} else if err := host.Preflight(*prefix); err != nil {
 		return err
 	}
 

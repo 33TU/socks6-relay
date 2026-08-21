@@ -34,10 +34,10 @@ docker-run-ndp-proxy *args:
 
 
 # one-off host setup for a trial; not persistent across reboots (requires root)
-setup-host prefix iface:
+setup-host prefix:
     sudo sysctl -w net.ipv6.ip_nonlocal_bind=1
-    sudo ip -6 route replace local {{ prefix }} dev {{ iface }} table local
+    sudo ip -6 route replace local {{ prefix }} dev lo
 
 # undo setup-host
-teardown-host prefix iface:
-    sudo ip -6 route del local {{ prefix }} dev {{ iface }} table local
+teardown-host prefix:
+    sudo ip -6 route del local {{ prefix }} dev lo
