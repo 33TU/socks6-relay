@@ -3,7 +3,7 @@ build:
     go build -o bin/socks-ipv6-relay-test ./cmd/socks-ipv6-relay-test
     go build -o bin/ndp-proxy ./cmd/ndp-proxy
 
-# requires cap NET_ADMIN and cap NET_RAW (or root privileges)
+# requires cap NET_RAW (or root privileges)
 run-ndp-proxy *args:
     bin/ndp-proxy {{ args }}
 
@@ -22,10 +22,10 @@ docker-run *args:
     docker run --rm \
         --network host socks-ipv6-relay {{ args }}
 
-# ndp-proxy still needs NET_ADMIN and NET_RAW
+# ndp-proxy needs NET_RAW for its packet socket
 docker-run-ndp-proxy *args:
     docker run --rm \
-        --cap-add NET_ADMIN --cap-add NET_RAW \
+        --cap-add NET_RAW \
         --network host \
         --entrypoint /app/bin/ndp-proxy \
         socks-ipv6-relay {{ args }}

@@ -74,7 +74,6 @@ docker run --rm \
 ```bash
 docker run --rm \
   --network host \
-  --cap-add NET_ADMIN \
   --cap-add NET_RAW \
   --entrypoint /app/bin/ndp-proxy \
   socks-ipv6-relay \
@@ -196,8 +195,11 @@ alongside the relay.
 > # if the gateway keeps re-soliciting after an NA, it needs Override -> use ndp-proxy.
 > ```
 
-`ndp-proxy` puts the interface into allmulticast mode for its lifetime (so it
-receives solicitations for unowned addresses) and restores it on exit.
+`ndp-proxy` requests allmulticast on its own packet socket, so it receives
+solicitations for addresses that are not configured on the interface. The kernel
+reference counts that request against the socket and drops it when the socket
+closes, so it cannot outlive the process — even if it is killed with `SIGKILL`.
+The interface flag itself is never modified.
 
 ---
 
@@ -207,9 +209,14 @@ receives solicitations for unowned addresses) and restores it on exit.
 two host settings, so it runs as an unprivileged user once the host setup above
 is done.
 
-**`ndp-proxy` requires `CAP_NET_ADMIN` and `CAP_NET_RAW`** (or root): it opens an
-`AF_PACKET` socket to receive Neighbor Solicitations and puts the interface into
-allmulticast mode while running, restoring it on exit.
+**`ndp-proxy` requires `CAP_NET_RAW`** (or root) to open the `AF_PACKET` socket it
+receives Neighbor Solicitations on, and to request allmulticast on that socket.
+It changes no interface or host settings, so `CAP_NET_ADMIN` should not be
+needed.
+
+> Previous releases also required `CAP_NET_ADMIN`, because allmulticast was set
+> as an interface flag over netlink. If `ndp-proxy` fails to start with
+> `operation not permitted`, add `CAP_NET_ADMIN` back and please open an issue.
 
 The host setup itself requires root, but is done once, out of band.
 
@@ -253,7 +260,7 @@ configuring an interface address per connection.
 On an on-link prefix, the separate `ndp-proxy` binary answers IPv6 Neighbor
 Solicitations for the whole prefix (with the Override flag set) so the gateway
 delivers the return traffic. It uses a raw `AF_PACKET` socket (needs
-`CAP_NET_RAW`) and puts the interface in allmulticast mode while running. See
+`CAP_NET_RAW`) with allmulticast requested on that socket. See
 *Routed vs on-link prefixes* above.
 
 ---
