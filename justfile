@@ -15,12 +15,12 @@ test-proxy *args:
     bin/socks-ipv6-relay-test {{ args }}
 
 docker-build:
-    docker build -t socks-ipv6-relay .
+    docker build -t socks6-relay .
 
 # needs no capabilities; run `just setup-host` on the host first
 docker-run *args:
     docker run --rm \
-        --network host socks-ipv6-relay {{ args }}
+        --network host socks6-relay {{ args }}
 
 # ndp-proxy needs NET_RAW for its packet socket
 docker-run-ndp-proxy *args:
@@ -28,7 +28,7 @@ docker-run-ndp-proxy *args:
         --cap-add NET_RAW \
         --network host \
         --entrypoint /app/bin/ndp-proxy \
-        socks-ipv6-relay {{ args }}
+        socks6-relay {{ args }}
 
 # the test helper is not shipped in the image; run it from bin/ instead
 
