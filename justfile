@@ -30,11 +30,8 @@ docker-run-ndp-proxy *args:
         --entrypoint /app/bin/ndp-proxy \
         socks-ipv6-relay {{ args }}
 
-docker-run-test *args:
-    docker run --rm \
-        --add-host=host.docker.internal:host-gateway \
-        --entrypoint /app/bin/socks-ipv6-relay-test \
-        socks-ipv6-relay {{ args }}
+# the test helper is not shipped in the image; run it from bin/ instead
+
 
 # one-off host setup for a trial; not persistent across reboots (requires root)
 setup-host prefix iface:

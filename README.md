@@ -230,7 +230,6 @@ just run-proxy  --prefix 2a01:4f9:abcd:1234::/64 --iface eth0
 just test-proxy --proxy 127.0.0.1:1080
 just docker-build
 just docker-run --prefix 2a01:4f9:abcd:1234::/64 --iface eth0
-just docker-run-test --proxy host.docker.internal:1080
 ```
 
 Run the tests with:
