@@ -38,8 +38,9 @@ func CheckIPv6NonLocalBind() error {
 // local table, without which the kernel drops inbound packets for generated
 // addresses. A route for a shorter prefix that covers this one satisfies it.
 //
-// iface is used only to make the remediation message concrete.
-func CheckLocalIPv6Route(prefix, iface string) error {
+// Only the destination and route type are matched: the device a local route is
+// attached to does not affect delivery, so any device satisfies this.
+func CheckLocalIPv6Route(prefix string) error {
 	_, ipnet, err := net.ParseCIDR(prefix)
 	if err != nil {
 		return err
@@ -68,22 +69,18 @@ func CheckLocalIPv6Route(prefix, iface string) error {
 		}
 	}
 
-	if iface == "" {
-		iface = "<iface>"
-	}
-
 	return fmt.Errorf(
-		"no local route covering %s in the local table; add it with: sudo ip -6 route add local %s dev %s table local",
-		prefix, ipnet.String(), iface,
+		"no local route covering %s in the local table; add it with: sudo ip -6 route add local %s dev lo",
+		prefix, ipnet.String(),
 	)
 }
 
 // Preflight runs the host checks the data path depends on.
-func Preflight(prefix, iface string) error {
+func Preflight(prefix string) error {
 	if err := CheckIPv6NonLocalBind(); err != nil {
 		return err
 	}
-	if err := CheckLocalIPv6Route(prefix, iface); err != nil {
+	if err := CheckLocalIPv6Route(prefix); err != nil {
 		return err
 	}
 

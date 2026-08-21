@@ -59,7 +59,6 @@ go build -o bin/socks-ipv6-relay-test ./cmd/socks-ipv6-relay-test
 ```bash
 bin/socks-ipv6-relay \
   --prefix 2a01:4f9:abcd:1234::/64 \
-  --iface eth0 \
   --listen :1080
 ```
 
@@ -120,7 +119,6 @@ build it from source.
 | Flag                             | Default      | Description                                                          |
 | -------------------------------- | ------------ | -------------------------------------------------------------------- |
 | `--prefix`                       | *(required)* | IPv6 prefix to rotate through (e.g. `2a01:4f9:abcd:1234::/64`)        |
-| `--iface`                        | *(optional)* | Interface name, used only to make preflight messages concrete         |
 | `--listen`                       | `:1080`      | SOCKS4a/SOCKS5 listen address                                        |
 | `--network`                      | `tcp`        | Listen network                                                       |
 | `--random`                       | `true`       | Random addresses within the prefix; `false` = incremental             |
@@ -157,7 +155,7 @@ if either is missing, so configure them once as the operator:
 sudo sysctl -w net.ipv6.ip_nonlocal_bind=1
 
 # let the kernel accept inbound packets for every address in the prefix
-sudo ip -6 route add local 2a01:4f9:abcd:1234::/64 dev eth0 table local
+sudo ip -6 route add local 2a01:4f9:abcd:1234::/64 dev lo
 ```
 
 Make them persist across reboots:
@@ -165,6 +163,11 @@ Make them persist across reboots:
 ```bash
 echo 'net.ipv6.ip_nonlocal_bind=1' | sudo tee /etc/sysctl.d/99-socks-ipv6-relay.conf
 ```
+
+A `local` route implicitly goes into the `local` routing table, so `table local`
+is redundant. The device it is attached to does not affect delivery either — the
+route only tells the kernel these addresses are its own — so `dev lo` is
+conventional but any device works.
 
 The route belongs in whatever manages your interfaces (a systemd unit,
 `/etc/network/interfaces` `post-up`, netplan, …). `just setup-host` applies both
@@ -251,11 +254,13 @@ The host setup itself requires root, but is done once, out of band.
 ## 🧪 Development (justfile)
 
 ```bash
-just build            # build both binaries into bin/
-just run-proxy  --prefix 2a01:4f9:abcd:1234::/64 --iface eth0
+just build            # all three binaries into bin/
+just setup-host 2a01:4f9:abcd:1234::/64
+just run-proxy  --prefix 2a01:4f9:abcd:1234::/64
 just test-proxy --proxy 127.0.0.1:1080
 just docker-build
-just docker-run --prefix 2a01:4f9:abcd:1234::/64 --iface eth0
+just docker-run --prefix 2a01:4f9:abcd:1234::/64
+just run-ndp-proxy --prefix 2a01:4f9:abcd:1234::/64 --iface eth0
 ```
 
 Run the tests with:

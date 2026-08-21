@@ -58,7 +58,7 @@ func run() error {
 
 	if *skipPreflight {
 		slog.Warn("skipping host configuration checks")
-	} else if err := host.Preflight(*prefix, *iface); err != nil {
+	} else if err := host.Preflight(*prefix); err != nil {
 		return err
 	}
 
